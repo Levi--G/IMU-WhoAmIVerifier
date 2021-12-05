@@ -1,14 +1,12 @@
 /*
 Based on various samples and sources from the SlimeVR community!
-Added:
--Magnetometer WHOAMI checking
--MPU9255, ICM20948 and ICM20689 support
--Code cleanup
 */
 
+#include "Arduino.h"
 #include "Wire.h"
 #include <i2cscan.h>
 #include <I2Cdev.h>
+#include "IMU.h"
 
 //ESP32
 //#define PIN_IMU_SDA 21
@@ -22,142 +20,66 @@ Added:
 //#define PIN_IMU_SCL 0
 //#define ESP8266
 
+#define INFO_LOGGING false
+
 #define SERIAL_BAUDRATE 115200
 #define I2C_SPEED 400000
 
-#define MPU_ADDRESS_AD0_LOW 0x68  // address pin low (GND)
-#define MPU_ADDRESS_AD0_HIGH 0x69 // address pin high (VCC)
-#define MPU_MAG_ADDRESS 0x0C
+IMU IMUs[]{
+    IMU("MPU6050", 0x68, 0x69, 0x68, 0x75),
+    IMU("MPU6500", 0x68, 0x69, 0x70, 0x75),
+    IMU("MPU9250", 0x68, 0x69, 0x71, 0x75, Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0x00)),
+    IMU("MPU9255", 0x68, 0x69, 0x73, 0x75, Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0)),
+    IMU("ICM20680", 0x68, 0x69, 0xA9, 0x75),
+    IMU("ICM20602", 0x68, 0x69, 0x12, 0x75),
+    IMU("ICM20689", 0x68, 0x69, 0x98, 0x75),
+    IMU("ICM20690", 0x68, 0x69, 0x20, 0x75),
+    IMU("ICM20649", 0x68, 0x69, 0xE1, 0x00),
+    IMU("ICM20948", 0x68, 0x69, 0xEA, 0x00, Magnetometer("AK09916", 0x0C, 0x9, 0x01, 0x0F, 0x02, 0xFF, 0x0F, 0x02, 0x00))};
 
-#define ICM20948_GENUINE_WHOAMI 234
-#define ICM20689_GENUINE_WHOAMI 152
-#define MPU9255_GENUINE_WHOAMI 115
-#define MPU9250_GENUINE_WHOAMI 113
-#define MPU6500_GENUINE_WHOAMI 112
-#define MPU6050_GENUINE_WHOAMI 104
-
-#define AK8963_GENUINE_WHOAMI 72
-#define AK09916_GENUINE_WHOAMI 9
-
-#define MPU_RA_INT_PIN_CFG 0x37
-#define ICM20948_RA_INT_PIN_CFG 0x0F
-
-#define MPU_RA_WHO_AM_I 0x75
-#define ICM20948_RA_WHO_AM_I 0x00
-#define AK8963_RA_WHO_AM_I 0
-#define AK09916_RA_WHO_AM_I 1
-
-//#define MPU_RA_PWR_MGMT_1 0x6B
+uint8_t Addresses[]{0x68, 0x69};
+uint8_t Registers[]{0x75, 0x00};
 
 uint8_t buffer[1] = {0};
 
-void SetBypass(uint8_t addr, uint8_t regaddr, uint8_t bit, uint8_t data)
+bool SetBypass(uint8_t addr, uint8_t regaddr, uint8_t mask, uint8_t data)
 {
-  buffer[0] = 0;
-  I2Cdev::writeBit(addr, regaddr, bit, data);  // Enable I2C bypass to check magnetometer (if present)
-  I2Cdev::readBit(addr, regaddr, bit, buffer); // Read I2C bypass status
-  Serial.printf("[INFO] I2C bypass mode is %s\n", buffer[0] ? "enabled." : "disabled.");
-}
-
-void CheckMag(uint8_t addr, uint8_t regaddr, uint8_t genuine, String name)
-{
-  if (!I2CSCAN::isI2CExist(addr))
-  {
-    Serial.printf("[ERR] Magnetometer not found on addr 0x%02x\n", addr);
-    return;
-  }
-  Serial.printf("[INFO] Magnetometer was found on addr 0x%02x\n", addr);
   buffer[0] = 0;
   I2Cdev::readByte(addr, regaddr, buffer);
-  if (buffer[0] == genuine)
-  {
-    Serial.print("[OK] Connected Mag is ");
-    Serial.print(name);
-    Serial.print(" with device ID ");
-    Serial.println(buffer[0]);
-  }
-  else
-  {
-    Serial.print("[NOK] Connected Mag is unknown with device ID ");
-    Serial.println(buffer[0]);
-  }
+  auto exist = buffer[0];
+  exist |= (mask & data);
+  exist &= (~mask | data);
+  I2Cdev::writeByte(addr, regaddr, exist);
+  buffer[0] = 0;
+  I2Cdev::readByte(addr, regaddr, buffer);
+  exist = buffer[0];
+  return (exist & mask) == (data & mask);
 }
 
-void checkMPU(uint8_t addr)
+uint8_t ReadReg(uint8_t addr, uint8_t regaddr)
 {
-  if (!I2CSCAN::isI2CExist(addr))
+  buffer[0] = 0;
+  I2Cdev::readByte(addr, regaddr, buffer);
+  return buffer[0];
+}
+
+void PrintHex(uint8_t hex)
+{
+  if (hex < 0x0F)
   {
-    Serial.printf("[ERR] Can't find I2C device on addr 0x%02x\n", addr);
+    Serial.print("0x0");
   }
   else
   {
-    Serial.printf("[INFO] Found I2C device on addr 0x%02x\n", addr);
-
-    //I2Cdev::writeBit(addr, MPU_RA_PWR_MGMT_1, 6, false); // Set sleep disabled
-
-    buffer[0] = 0;
-    I2Cdev::readByte(addr, MPU_RA_WHO_AM_I, buffer); // Read WHOAMI register
-    auto WhoAmI1 = buffer[0];
-    switch (WhoAmI1)
-    {
-    case ICM20689_GENUINE_WHOAMI:
-    {
-      Serial.printf("[OK] Connected IMU is ICM-20689 with device ID %d\n", ICM20689_GENUINE_WHOAMI);
-      break;
-    }
-    case MPU9255_GENUINE_WHOAMI:
-    {
-      Serial.printf("[OK] Connected IMU is MPU-9255 with device ID %d\n", MPU9250_GENUINE_WHOAMI);
-      SetBypass(addr, MPU_RA_INT_PIN_CFG, 1, true);
-      CheckMag(MPU_MAG_ADDRESS, AK8963_RA_WHO_AM_I, AK8963_GENUINE_WHOAMI, "AK8963");
-      SetBypass(addr, MPU_RA_INT_PIN_CFG, 1, false);
-      break;
-    }
-    case MPU9250_GENUINE_WHOAMI:
-    {
-      Serial.printf("[OK] Connected IMU is MPU-9250 with device ID %d\n", MPU9250_GENUINE_WHOAMI);
-      SetBypass(addr, MPU_RA_INT_PIN_CFG, 1, true);
-      CheckMag(MPU_MAG_ADDRESS, AK8963_RA_WHO_AM_I, AK8963_GENUINE_WHOAMI, "AK8963");
-      SetBypass(addr, MPU_RA_INT_PIN_CFG, 1, false);
-      break;
-    }
-    case MPU6500_GENUINE_WHOAMI:
-    {
-      Serial.printf("[OK] Connected IMU is MPU-6500 with device ID %d\n", MPU6500_GENUINE_WHOAMI);
-      break;
-    }
-    case MPU6050_GENUINE_WHOAMI:
-    {
-      Serial.printf("[OK] Connected IMU is MPU-6050 with device ID %d\n", MPU6050_GENUINE_WHOAMI);
-      break;
-    }
-    default:
-    {
-      Serial.println("[INFO] WHOAMI not found, checking secondary location!");
-      if (I2Cdev::readByte(addr, ICM20948_RA_WHO_AM_I, buffer))
-      {
-        auto WhoAmI2 = buffer[0];
-        switch (WhoAmI2)
-        {
-        case ICM20948_GENUINE_WHOAMI:
-        {
-          Serial.printf("[OK] Connected IMU is ICM-20948 with device ID %d\n", ICM20948_GENUINE_WHOAMI);
-          SetBypass(addr, ICM20948_RA_INT_PIN_CFG, 1, true);
-          CheckMag(MPU_MAG_ADDRESS, AK09916_RA_WHO_AM_I, AK09916_GENUINE_WHOAMI, "AK09916");
-          SetBypass(addr, ICM20948_RA_INT_PIN_CFG, 1, false);
-          break;
-        }
-        default:
-        {
-          break;
-        }
-        }
-        Serial.printf("[NOK] Connected IMU is unknown with device ID %d or %d\n", WhoAmI1, WhoAmI2);
-      }
-      break;
-    }
-    }
+    Serial.print("0x");
   }
+  Serial.print(hex, 16);
+}
+
+void PrintHexln(uint8_t hex)
+{
+  PrintHex(hex);
+  Serial.println();
 }
 
 void setup()
@@ -169,14 +91,139 @@ void setup()
   Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
 #endif
   Wire.setClock(I2C_SPEED);
+  //Get rid of garbo
+  Serial.println();
+  Serial.println();
+
+  Serial.println("Supported chips:");
+
+  for (uint8_t i = 0; i < sizeof(IMUs) / sizeof(IMUs[0]); i++)
+  {
+    auto imu = IMUs[i];
+    Serial.print(imu.Name);
+    if (imu.Mag.HasMag)
+    {
+      Serial.print(" + ");
+      Serial.print(imu.Mag.Name);
+    }
+    Serial.println();
+  }
 }
 
 void loop()
 {
+  Serial.println("----------");
+#if INFO_LOGGING
+  Serial.println("Scanning...");
+#endif
+  bool foundI2C = false;
+  for (uint8_t a = 0; a < sizeof(Addresses) / sizeof(Addresses[0]); a++)
+  {
+    auto addr = Addresses[a];
+    if (I2CSCAN::isI2CExist(addr))
+    {
+      foundI2C = true;
+      bool found = false;
+      for (uint8_t r = 0; r < sizeof(Registers) / sizeof(Registers[0]); r++)
+      {
+        auto reg = Registers[r];
+        auto regval = ReadReg(addr, reg);
+        for (uint8_t i = 0; i < sizeof(IMUs) / sizeof(IMUs[0]); i++)
+        {
+          auto imu = IMUs[i];
+          if ((imu.Address == addr || imu.AltAddress == addr) && imu.WhoAmIRegister == reg && imu.WhoAmI == regval)
+          {
+            found = true;
+            Serial.print("[IMU] Found IMU is ");
+            Serial.print(imu.Name);
+            Serial.print(" with device ID ");
+            PrintHex(imu.WhoAmI);
+            Serial.print(" on ");
+            Serial.print(imu.Address == addr ? "(Primary)" : "(Secondary)");
+            Serial.print(" address ");
+            PrintHexln(addr);
+            if (imu.Mag.HasMag)
+            {
+              if (imu.Mag.UseBypass)
+              {
+                if (SetBypass(addr, imu.Mag.BypassRegister, imu.Mag.BypassMask, imu.Mag.BypassValue))
+                {
+#if INFO_LOGGING
+                  Serial.print("[");
+                  Serial.print(imu.Name);
+                  Serial.println("] I2C bypass mode is enabled");
+#endif
+                }
+                else
+                {
+                  Serial.print(F("[ERR] Unable to enable bypass!"));
+                }
+              }
+              if (I2CSCAN::isI2CExist(imu.Mag.Address))
+              {
+                auto magwho = ReadReg(imu.Mag.Address, imu.Mag.WhoAmIRegister);
+                if (magwho == imu.Mag.WhoAmI)
+                {
+                  Serial.print("[MAG] Found Magnetometer is ");
+                  Serial.print(imu.Mag.Name);
+                  Serial.print(" with device ID ");
+                  PrintHex(imu.Mag.WhoAmI);
+                  Serial.print(" on address ");
+                  PrintHexln(imu.Mag.Address);
+                }
+                else
+                {
+                  Serial.print(F("[ERR] Unknown magnetometer with device ID "));
+                  PrintHex(magwho);
+                  Serial.print(F(" was found on addr "));
+                  PrintHexln(imu.Mag.Address);
+                }
+              }
+              else
+              {
+                Serial.print(F("[ERR] Magnetometer not found on addr "));
+                PrintHexln(imu.Mag.Address);
+              }
+              if (imu.Mag.UseBypass)
+              {
+                if (SetBypass(addr, imu.Mag.BypassRegister, imu.Mag.UnBypassMask, imu.Mag.UnBypassValue))
+                {
+#if INFO_LOGGING
+                  Serial.print("[");
+                  Serial.print(imu.Name);
+                  Serial.println("] I2C bypass mode is disabled");
+#endif
+                }
+                else
+                {
+                  Serial.print(F("[ERR] Unable to disable bypass!"));
+                }
+              }
+            }
+          }
+        }
+      }
+      if (!found)
+      {
+        Serial.print(F("[ERR] Found unknown I2C device on address "));
+        PrintHex(addr);
+        Serial.println(" with possible id's:");
+        for (uint8_t r = 0; r < sizeof(Registers) / sizeof(Registers[0]); r++)
+        {
+          auto reg = Registers[r];
+          auto regval = ReadReg(addr, reg);
+          Serial.print("Reg: ");
+          PrintHex(reg);
+          Serial.print(" Value:");
+          PrintHexln(regval);
+        }
+        Serial.println(F("Please report this on https://github.com/Levi--G/IMU-WhoAmIVerifier/issues with information above. :)"));
+      }
+    }
+  }
+  if (!foundI2C)
+  {
+    Serial.println(F("Nothing found on the I2C bus, check connections!"));
+  }
   delay(5000);
-  Serial.println();
-  checkMPU(MPU_ADDRESS_AD0_LOW);
-  Serial.println("-----------------------");
-  checkMPU(MPU_ADDRESS_AD0_HIGH);
-  Serial.println("-----------------------");
 }
