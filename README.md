@@ -3,45 +3,45 @@
 ## Supported
 
 Supported IMUs by this tool:
-MPU6050
-MPU6500
-MPU9250 + AK8963
-MPU9255 + AK8963
-ICM-20600
-ICM-20601
-ICM-20602
-ICM-20608-G
-ICM-20609
-ICM-20648
-ICM-20649
-ICM-20689
-ICM-20690
-ICM-20948 + AK09916
-ICM-40627
-ICM-42605
-ICM-42670-P
-ICM-42688-V
-ICM-42688-P
-ICG-20660/L
-IAM-20380
-IAM-20680
-IAM-20680HP
-IIM-42652
-BNO055
-BNO08x (WIP)
+- MPU6050
+- MPU6500
+- MPU9250 + AK8963
+- MPU9255 + AK8963
+- ICM-20600
+- ICM-20601
+- ICM-20602
+- ICM-20608-G
+- ICM-20609
+- ICM-20648
+- ICM-20649
+- ICM-20689
+- ICM-20690
+- ICM-20948 + AK09916
+- ICM-40627
+- ICM-42605
+- ICM-42670-P
+- ICM-42688-V
+- ICM-42688-P
+- ICG-20660/L
+- IAM-20380
+- IAM-20680
+- IAM-20680HP
+- IIM-42652
+- BNO055
+- BNO08x (WIP)
 
 Of these the following are supported by SlimeVR:
-MPU6050
-MPU6500
-MPU9250 without mag
-BNO055
-BNO08x
+- MPU6050
+- MPU6500
+- MPU9250 without mag
+- BNO055
+- BNO08x
 
 These are being worked on by SlimeVR:
-MPU9250 + AK8963
-MPU9255 + AK8963
-ICM-20689
-ICM-20948 + AK09916
+- MPU9250 + AK8963
+- MPU9255 + AK8963
+- ICM-20689
+- ICM-20948 + AK09916
 
 When in trouble:
 [Submit an issue](https://github.com/Levi--G/IMU-WhoAmIVerifier/issues)
@@ -66,8 +66,9 @@ The device will scan the i2c bus and report findings every 5 seconds.
 
 Example:
 
-
+![](https://raw.githubusercontent.com/Levi--G/IMU-WhoAmIVerifier/main/img/Output.png)
 
 This is an example of connecting a MPU6050 and then a MPU6050A, which actually has a ICM-20689 instead of the advertised 6050
 This is the same with SLIMEVR_SUPPORT enabled:
 
+![](https://raw.githubusercontent.com/Levi--G/IMU-WhoAmIVerifier/main/img/OutputSlime.png)
