@@ -7,30 +7,15 @@ Based on various samples and sources from the SlimeVR community!
 #include <i2cscan.h>
 #include <I2Cdev.h>
 #include "IMU.h"
-
-//ESP32
-//#define PIN_IMU_SDA 21
-//#define PIN_IMU_SCL 22
-//D1
-#define PIN_IMU_SDA D2
-#define PIN_IMU_SCL D1
-#define ESP8266
-//ESP-01
-//#define PIN_IMU_SDA 2
-//#define PIN_IMU_SCL 0
-//#define ESP8266
-
-#define INFO_LOGGING false
-
-#define SERIAL_BAUDRATE 115200
-#define I2C_SPEED 400000
+#include "BNO08x.h"
+#include "config.h"
 
 IMU IMUs[]{
     //Invensense
-    IMU("MPU6050", 0x68, 0x69, 0x68, 0x75),
-    IMU("MPU6500", 0x68, 0x69, 0x70, 0x75),
-    IMU("MPU9250", 0x68, 0x69, 0x71, 0x75, Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0x00)),
-    IMU("MPU9255", 0x68, 0x69, 0x73, 0x75, Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0)),
+    IMU("MPU6050", 0x68, 0x69, 0x68, 0x75, "SUPPORTED", "IMU_MPU6050"),
+    IMU("MPU6500", 0x68, 0x69, 0x70, 0x75, "SUPPORTED", "IMU_MPU6500"),
+    IMU("MPU9250", 0x68, 0x69, 0x71, 0x75, "SUPPORTED without Mag (WIP)", "IMU_MPU6050", Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0x00)),
+    IMU("MPU9255", 0x68, 0x69, 0x73, 0x75, "SUPPORTED without Mag (WIP)", "IMU_MPU6050", Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0)),
     IMU("ICM-20600", 0x68, 0x69, 0x11, 0x75),
     IMU("ICM-20601", 0x68, 0x69, 0xAC, 0x75),
     IMU("ICM-20602", 0x68, 0x69, 0x12, 0x75),
@@ -38,9 +23,9 @@ IMU IMUs[]{
     IMU("ICM-20609", 0x68, 0x69, 0xA6, 0x75),
     IMU("ICM-20648", 0x68, 0x69, 0xE0, 0x00),
     IMU("ICM-20649", 0x68, 0x69, 0xE1, 0x00),
-    IMU("ICM-20689", 0x68, 0x69, 0x98, 0x75),
+    IMU("ICM-20689", 0x68, 0x69, 0x98, 0x75, "NOT SUPPORTED YET but is WIP ;)", ""),
     IMU("ICM-20690", 0x68, 0x69, 0x20, 0x75),
-    IMU("ICM-20948", 0x68, 0x69, 0xEA, 0x00, Magnetometer("AK09916", 0x0C, 0x9, 0x01, 0x0F, 0x02, 0xFF, 0x0F, 0x02, 0x00)),
+    IMU("ICM-20948", 0x68, 0x69, 0xEA, 0x00, "NOT SUPPORTED YET but is WIP ;)", "", Magnetometer("AK09916", 0x0C, 0x9, 0x01, 0x0F, 0x02, 0xFF, 0x0F, 0x02, 0x00)),
     IMU("ICM-40627", 0x68, 0x69, 0x4E, 0x75),
     IMU("ICM-42605", 0x68, 0x69, 0x42, 0x75),
     IMU("ICM-42670-P", 0x68, 0x69, 0x67, 0x75),
@@ -55,9 +40,9 @@ IMU IMUs[]{
     //IMU("ICM-20603", 0x68, 0x69, 0x68, 0x75), PB only
 
     //Bosch
-    IMU("BNO055", 0x29, 0x28, 0xA0, 0x00),
-    //IMU("BNO055", 0x4A, 0x4B, 0xA0, 0x00), needs special SHTP packets
-    };
+    IMU("BNO055", 0x29, 0x28, 0xA0, 0x00, "SUPPORTED", "IMU_BNO055"),
+    IMU("BNO08x", 0x4A, 0x4B, "SUPPORTED", "IMU_BNO080 or IMU_BNO085 or IMU_BNO086 (choose the right one)", BNO08X::IsMatch),
+};
 
 uint8_t Addresses[]{0x68, 0x69, 0x29, 0x28};
 uint8_t Registers[]{0x75, 0x00};
@@ -109,9 +94,6 @@ void setup()
   Serial.begin(SERIAL_BAUDRATE);
   I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL);
   Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
-#ifdef ESP8266
-  Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
-#endif
   Wire.setClock(I2C_SPEED);
   //Get rid of garbo
   Serial.println();
@@ -223,6 +205,21 @@ void loop()
                 }
               }
             }
+#if SLIMEVR_SUPPORT
+            Serial.print("[SlimeVR] SlimeVR with this IMU is: ");
+            if (!imu.SlimeVRSupport.isEmpty())
+            {
+              Serial.println(imu.SlimeVRSupport);
+              if (!imu.SlimeVRDefine.isEmpty())
+              {
+                Serial.print("[SlimeVR] Use this in your defines.h: #define IMU ");
+                Serial.println(imu.SlimeVRDefine);
+              }
+            }
+            else{
+                Serial.println("NOT SUPPORTED :c");
+            }
+#endif
           }
         }
       }
