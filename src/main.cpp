@@ -10,6 +10,8 @@ Based on various samples and sources from the SlimeVR community!
 #include "BNO08x.h"
 #include "config.h"
 
+#define arrlen(x) (sizeof(x) / sizeof(x[0]))
+
 IMU IMUs[]{
     //Invensense
     IMU("MPU6050", 0x68, 0x69, 0x68, 0x75, "SUPPORTED", "IMU_MPU6050"),
@@ -50,7 +52,7 @@ IMU IMUs[]{
 };
 
 uint8_t Addresses[]{0x68, 0x69, 0x29, 0x28, 0x0D, 0x3C, 0x3D};
-uint8_t Registers[]{0x75, 0x00};
+uint8_t Registers[]{0x75, 0x00, 0x0D, 0x0C};
 
 uint8_t buffer[1] = {0};
 
@@ -107,7 +109,7 @@ void setup()
   Serial.println("--IMU-WhoAmIVerifier---");
   Serial.println("Supported chips:");
 
-  for (uint8_t i = 0; i < sizeof(IMUs) / sizeof(IMUs[0]); i++)
+  for (uint8_t i = 0; i < arrlen(IMUs); i++)
   {
     auto imu = IMUs[i];
     Serial.print(imu.Name);
@@ -127,18 +129,18 @@ void loop()
   Serial.println("Scanning...");
 #endif
   bool foundI2C = false;
-  for (uint8_t a = 0; a < sizeof(Addresses) / sizeof(Addresses[0]); a++)
+  for (uint8_t a = 0; a < arrlen(Addresses); a++)
   {
     auto addr = Addresses[a];
     if (I2CSCAN::isI2CExist(addr))
     {
       foundI2C = true;
       bool found = false;
-      for (uint8_t r = 0; r < sizeof(Registers) / sizeof(Registers[0]); r++)
+      for (uint8_t r = 0; r < arrlen(Registers); r++)
       {
         auto reg = Registers[r];
         auto regval = ReadReg(addr, reg);
-        for (uint8_t i = 0; i < sizeof(IMUs) / sizeof(IMUs[0]); i++)
+        for (uint8_t i = 0; i < arrlen(IMUs); i++)
         {
           auto imu = IMUs[i];
           if ((imu.Address == addr || imu.AltAddress == addr) && imu.WhoAmIRegister == reg && imu.WhoAmI == regval)
@@ -233,7 +235,7 @@ void loop()
         Serial.print(F("[ERR] Found unknown I2C device on address "));
         PrintHex(addr);
         Serial.println(" with possible id's:");
-        for (uint8_t r = 0; r < sizeof(Registers) / sizeof(Registers[0]); r++)
+        for (uint8_t r = 0; r < arrlen(Registers); r++)
         {
           auto reg = Registers[r];
           auto regval = ReadReg(addr, reg);
