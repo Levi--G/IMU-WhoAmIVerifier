@@ -13,7 +13,7 @@ Based on various samples and sources from the SlimeVR community!
 #define arrlen(x) (sizeof(x) / sizeof(x[0]))
 
 IMU IMUs[]{
-    //Invensense
+    // Invensense
     IMU("MPU6050", 0x68, 0x69, 0x68, 0x75, "SUPPORTED", "IMU_MPU6050"),
     IMU("MPU6500", 0x68, 0x69, 0x70, 0x75, "SUPPORTED", "IMU_MPU6500"),
     IMU("MPU9250", 0x68, 0x69, 0x71, 0x75, "SUPPORTED without Mag (WIP)", "IMU_MPU6050", Magnetometer("AK8963", 0x0C, 0x48, 0x00, 0x37, 0x02, 0xFF, 0x37, 0x02, 0x00)),
@@ -33,21 +33,21 @@ IMU IMUs[]{
     IMU("ICM-42670-P", 0x68, 0x69, 0x67, 0x75),
     IMU("ICM-42688-V", 0x68, 0x69, 0xDB, 0x75),
     IMU("ICM-42688-P", 0x68, 0x69, 0x47, 0x75),
-    //Special?
+    // Special?
     IMU("ICG-20660/L", 0x68, 0x69, 0x91, 0x75),
     IMU("IAM-20380", 0x68, 0x69, 0xB5, 0x75),
     IMU("IAM-20680", 0x68, 0x69, 0xA9, 0x75),
     IMU("IAM-20680HP", 0x68, 0x69, 0xF8, 0x75),
     IMU("IIM-42652", 0x68, 0x69, 0x6F, 0x75),
-    //IMU("ICM-20603", 0x68, 0x69, 0x68, 0x75), PB only
+    // IMU("ICM-20603", 0x68, 0x69, 0x68, 0x75), PB only
 
-    //Bosch
+    // Bosch
     IMU("BNO055", 0x29, 0x28, 0xA0, 0x00, "SUPPORTED", "IMU_BNO055"),
     IMU("BNO08x", 0x4A, 0x4B, "SUPPORTED", "IMU_BNO080 or IMU_BNO085 or IMU_BNO086 (choose the right one)", BNO08X::IsMatch),
 
-    //Mags
-    IMU("QMC5883L", 0x0D, 0x0D, 0xFF, 0x0D), //To be verified
-    IMU("HMC5883L", 0x3D, 0x3C, 0x48, 0x0C), //To be verified, 0x0D=0x34, 0x0E=0x33 ASCII=H43
+    // Mags
+    IMU("QMC5883L", 0x0D, 0x0D, 0xFF, 0x0D), // To be verified
+    IMU("HMC5883L", 0x3D, 0x3C, 0x48, 0x0C), // To be verified, 0x0D=0x34, 0x0E=0x33 ASCII=H43
 
 };
 
@@ -102,7 +102,16 @@ void setup()
   I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL);
   Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
   Wire.setClock(I2C_SPEED);
-  //Get rid of garbo
+
+#ifdef PIN_IMU_HIGH
+  pinMode(PIN_IMU_HIGH, OUTPUT);
+  digitalWrite(PIN_IMU_HIGH, HIGH);
+#endif
+#ifdef PIN_IMU_LOW
+  pinMode(PIN_IMU_LOW, OUTPUT);
+  digitalWrite(PIN_IMU_LOW, HIGH);
+#endif
+
   Serial.println();
   Serial.println();
 
@@ -223,8 +232,9 @@ void loop()
                 Serial.println(imu.SlimeVRDefine);
               }
             }
-            else{
-                Serial.println("NOT SUPPORTED :c");
+            else
+            {
+              Serial.println("NOT SUPPORTED :c");
             }
 #endif
           }
